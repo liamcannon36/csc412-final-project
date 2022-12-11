@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <thread>
 //
 #include "gl_frontEnd.h"
 
@@ -27,7 +28,7 @@ Direction newDirection(Direction forbiddenDir = Direction::NUM_DIRECTIONS);
 TravelerSegment newTravelerSegment(const TravelerSegment& currentSeg, bool& canAdd);
 void generateWalls(void);
 void generatePartitions(void);
-
+void travelerUpdate(Traveler* traveler);
 //==================================================================================
 //	Application-level global variables
 //==================================================================================
@@ -261,50 +262,86 @@ void initializeApplication(void)
 	
 	//	Initialize traveler info structs
 	//	You will probably need to replace/complete this as you add thread-related data
-	float** travelerColor = createTravelerColors(numTravelers);
-	for (unsigned int k=0; k<numTravelers; k++) {
-		GridPosition pos = getNewFreePosition();
-		//	Note that treating an enum as a sort of integer is increasingly
-		//	frowned upon, as C++ versions progress
-		Direction dir = static_cast<Direction>(segmentDirectionGenerator(engine));
-
-		TravelerSegment seg = {pos.row, pos.col, dir};
-		Traveler traveler;
-		traveler.segmentList.push_back(seg);
-		grid[pos.row][pos.col] = SquareType::TRAVELER;
-
-		//	I add 0-n segments to my travelers
-		unsigned int numAddSegments = segmentNumberGenerator(engine);
-		TravelerSegment currSeg = traveler.segmentList[0];
-		bool canAddSegment = true;
-cout << "Traveler " << k << " at (row=" << pos.row << ", col=" <<
-		pos.col << "), direction: " << dirStr(dir) << ", with up to " << numAddSegments << " additional segments" << endl;
-cout << "\t";
-
-		for (unsigned int s=0; s<numAddSegments && canAddSegment; s++)
-		{
-			TravelerSegment newSeg = newTravelerSegment(currSeg, canAddSegment);
-			if (canAddSegment)
-			{
-				traveler.segmentList.push_back(newSeg);
-				currSeg = newSeg;
-cout << dirStr(newSeg.dir) << "  ";
-			}
-		}
-cout << endl;
-
-		for (unsigned int c=0; c<4; c++)
-			traveler.rgba[c] = travelerColor[k][c];
-		
-		travelerList.push_back(traveler);
-	}
+//	float** travelerColor = createTravelerColors(numTravelers);
+    
+    /**
+            Thread stuff starts here
+     */
+    Traveler* traveler = new Traveler;
+    thread* travelerThread = new thread(travelerUpdate,traveler);
+    
+//	for (unsigned int k=0; k<numTravelers; k++) {
+//		GridPosition pos = getNewFreePosition();
+//		//	Note that treating an enum as a sort of integer is increasingly
+//		//	frowned upon, as C++ versions progress
+//		Direction dir = static_cast<Direction>(segmentDirectionGenerator(engine));
+//
+//		TravelerSegment seg = {pos.row, pos.col, dir};
+//		Traveler traveler;
+//		traveler.segmentList.push_back(seg);
+//		grid[pos.row][pos.col] = SquareType::TRAVELER;
+//
+//		//	I add 0-n segments to my travelers
+//		unsigned int numAddSegments = segmentNumberGenerator(engine);
+//		TravelerSegment currSeg = traveler.segmentList[0];
+//		bool canAddSegment = true;
+//cout << "Traveler " << k << " at (row=" << pos.row << ", col=" <<
+//		pos.col << "), direction: " << dirStr(dir) << ", with up to " << numAddSegments << " additional segments" << endl;
+//cout << "\t";
+//
+//		for (unsigned int s=0; s<numAddSegments && canAddSegment; s++)
+//		{
+//			TravelerSegment newSeg = newTravelerSegment(currSeg, canAddSegment);
+//			if (canAddSegment)
+//			{
+//				traveler.segmentList.push_back(newSeg);
+//				currSeg = newSeg;
+//cout << dirStr(newSeg.dir) << "  ";
+//			}
+//		}
+//cout << endl;
+//
+//		for (unsigned int c=0; c<4; c++)
+//			traveler.rgba[c] = travelerColor[k][c];
+//
+//		travelerList.push_back(traveler);
+//	}
 	
 	//	free array of colors
-	for (unsigned int k=0; k<numTravelers; k++)
-		delete []travelerColor[k];
-	delete []travelerColor;
+//	for (unsigned int k=0; k<numTravelers; k++)
+//		delete []travelerColor[k];
+//	delete []travelerColor;
 }
 
+void travelerUpdate(Traveler* traveler){
+    float** travelerColor = createTravelerColors(1);
+    GridPosition pos = getNewFreePosition();
+    //    Note that treating an enum as a sort of integer is increasingly
+    //    frowned upon, as C++ versions progress
+    Direction dir = static_cast<Direction>(segmentDirectionGenerator(engine));
+    TravelerSegment seg = {pos.row, pos.col, dir};
+    traveler->segmentList.push_back(seg);
+    grid[pos.row][pos.col] = SquareType::TRAVELER;
+    //    I add 0-n segments to my travelers
+    unsigned int numAddSegments = segmentNumberGenerator(engine);
+    TravelerSegment currSeg = traveler->segmentList[0];
+    bool canAddSegment = true;
+    cout << "Traveler 0 at (row=" << pos.row << ", col=" <<pos.col << "), direction: " << dirStr(dir) << ", with up to " << numAddSegments << " additional segments" << endl;
+    cout << "\t";
+    for (unsigned int s=0; s<numAddSegments && canAddSegment; s++){
+        TravelerSegment newSeg = newTravelerSegment(currSeg, canAddSegment);
+        if (canAddSegment){
+            traveler->segmentList.push_back(newSeg);
+            currSeg = newSeg;
+            cout << dirStr(newSeg.dir) << "  ";
+        }
+    }
+    cout << endl;
+
+    for (unsigned int c=0; c<4; c++)
+        traveler->rgba[c] = travelerColor[0][c];
+    travelerList.push_back(*traveler);
+}
 
 //------------------------------------------------------
 #if 0

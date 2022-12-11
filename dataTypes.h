@@ -23,7 +23,6 @@ enum class Direction
 	WEST,
 	SOUTH,
 	EAST,
-	//hello
 	NUM_DIRECTIONS
 };
 
