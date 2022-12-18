@@ -46,6 +46,7 @@ SquareType** grid;
 unsigned int numRows = 0;    //    height of the grid
 unsigned int numCols = 0;    //    width
 unsigned int numTravelers = 0;    //    initial number
+unsigned int growthMove = 0;
 unsigned int numTravelersDone = 0;
 unsigned int numLiveThreads = 0;        //    the number of live traveler threads
 vector<Traveler> travelerList;
@@ -187,9 +188,10 @@ int main(int argc, char* argv[])
     //    to be the width (number of columns) and height (number of rows) of the
     //    grid, the number of travelers, etc.
     //    So far, I hard code-some values
-    numRows = 40;
-    numCols = 45;
-    numTravelers = 0;
+    numRows = atoi(argv[1]);
+    numCols = atoi(argv[2]);
+    numTravelers = atoi(argv[3]);
+    growthMove = atoi(argv[4]); //growth after N moves
     numLiveThreads = 0;
     numTravelersDone = 0;
 
@@ -277,7 +279,6 @@ void initializeApplication(void)
     //The boolean which helps us to keep track if the thread is terminated yet or no
     traveler->status = TravelerStatus::RUNNING;
     thread* travelerThread = new thread(travelerThreadFunc,traveler);
-    numTravelers++;
     numLiveThreads++;
     threadPointerList.push_back(travelerThread);
 }
@@ -324,6 +325,7 @@ void travelerThreadFunc(Traveler* traveler){
 }
 
 void moveTraveler(Traveler* traveler){
+    cout<<"numTravelers are "<<numTravelers<<endl;
     // Check where is the head of the traveler.
     TravelerSegment headSeg = traveler->segmentList.front();
     // find a possible move, and make a segment of it
@@ -331,20 +333,59 @@ void moveTraveler(Traveler* traveler){
     // unless the segment is not null, append it to the front of the traveler's deque and pop segment from back
     //if segment is the exit square kill the traveler thread
     if (targetSegment != nullptr){
+        traveler->moveCount++;
         if(targetSegment->row == exitPos.row && targetSegment->col == exitPos.col){
+            // erase this traveler's "trail"
+            // all the squares that it was occupying are now free.
+            for(int i = 0; i<traveler->segmentList.size();i++){
+                TravelerSegment currTravelerSeg = traveler->segmentList.at(i);
+                grid[currTravelerSeg.row][currTravelerSeg.col] = SquareType::FREE_SQUARE;
+            }
+            
             keepGoing = false;
             traveler->status = TravelerStatus::TERMINATED;
+            numTravelersDone++;
         }
         else{
             //the grid square which is free, cover it by traveler
             traveler->segmentList.push_front(*targetSegment);
             grid[targetSegment->row][targetSegment->col] = SquareType::TRAVELER;
             
-            traveler->segmentList.pop_back();
-            //the grid square which is not covered by traveler, free it
             TravelerSegment tailSeg = traveler->segmentList.back();
-            grid[tailSeg.row][tailSeg.col] = SquareType::FREE_SQUARE;
-            
+            // if not growing tail segment  move count % num moves to grow == 0
+            if(traveler->moveCount % growthMove ==0){
+                Direction tailDir = tailSeg.dir;
+                int row = 0;
+                int col = 0;
+                switch (tailDir){
+                    case Direction::NORTH:
+                        row = tailSeg.row + 1;
+                        col = tailSeg.col;
+                        break;
+                    case Direction::SOUTH:
+                        row = tailSeg.row - 1;
+                        col = tailSeg.col;
+                        break;
+                    case Direction::WEST:
+                        row = tailSeg.row;
+                        col = tailSeg.col + 1;
+                        break;
+                    case Direction::EAST:
+                        row = tailSeg.row;
+                        col = tailSeg.col - 1;
+                        break;
+                    default:
+                        break;
+                }
+                TravelerSegment growSeg = {growSeg.row = row, growSeg.col = col, growSeg.dir = tailSeg.dir};
+                traveler->segmentList.push_back(growSeg);
+                grid[growSeg.row][growSeg.col] = SquareType::TRAVELER;
+            }
+            else{
+                //the grid square which is not covered by traveler, free it
+                grid[tailSeg.row][tailSeg.col] = SquareType::FREE_SQUARE;
+                traveler->segmentList.pop_back();
+            }
         }
     }
 }
@@ -448,6 +489,7 @@ void joinThreads(void){
             numTravelersDone++;
             numLiveThreads--;
             threadPointerList[i]->join();
+            travelerList[i].status = TravelerStatus::JOINED;
         }
     }
 }

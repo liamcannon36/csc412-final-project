@@ -92,12 +92,13 @@ struct Traveler
     /**    The traveler's index
      */
     unsigned int index;
-    
+    /**counter to track moves of the traveler
+     */
+    unsigned int moveCount;
     /**    The color assigned to the traveler, in rgba format
      */
     float rgba[4];
     
-    /** indicates whether the corresponding traveler thread is still running */
     /** indicates whether the corresponding traveler thread is still running */
     TravelerStatus status;
     
