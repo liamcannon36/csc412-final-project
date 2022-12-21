@@ -1,4 +1,3 @@
-//
 //  main.c
 //  Final Project CSC412
 //
@@ -35,6 +34,8 @@ void moveTraveler(Traveler* traveler);
 vector<Direction> findPossibleMoves(const TravelerSegment& headSeg);
 shared_ptr<TravelerSegment> findtargetSeg(const TravelerSegment& headSeg);
 void joinThreads(void);
+bool updatePartition(int partitionIndex, int targetRow,int targetCol);
+int searchPartitions(int partitionRow, int partitionCol);
 //==================================================================================
 //    Application-level global variables
 //==================================================================================
@@ -64,7 +65,7 @@ const int MAX_NUM_MESSAGES = 8;
 const int MAX_LENGTH_MESSAGE = 32;
 char** message;
 time_t launchTime;
-std::mutex travelerLock;
+std::mutex travelerGlobalLock;
 std::mutex gridLock;
 //    Random generators:  For uniform distributions
 const unsigned int MAX_NUM_INITIAL_SEGMENTS = 6;
@@ -267,14 +268,15 @@ void initializeApplication(void)
     //    real simulation), only wall/partition location and some color
     srand(static_cast<unsigned int>(time(NULL)));
 
-    //    generate a random exit
+//jyh
+//    temporary remove wallsl andd exit
+//    //    generate a random exit
     exitPos = getNewFreePosition();
     grid[exitPos.row][exitPos.col] = SquareType::EXIT;
-
     //    Generate walls and partitions
     generateWalls();
     generatePartitions();
-    
+
     float** travelerColor = createTravelerColors(numTravelers);
     for (unsigned int k=0; k<numTravelers; k++){
         GridPosition pos = getNewFreePosition();
@@ -284,7 +286,7 @@ void initializeApplication(void)
 
         TravelerSegment seg = {pos.row, pos.col, dir};
         Traveler traveler;
-        
+        traveler.travelerLock = new std::mutex();
         traveler.segmentList.push_back(seg);
         grid[pos.row][pos.col] = SquareType::TRAVELER;
 
@@ -337,16 +339,16 @@ void initializeApplication(void)
 
 void travelerThreadFunc(Traveler* traveler){
     //The boolean which helps us to keep track if the thread is terminated yet or no
-    travelerLock.lock();
+    traveler->travelerLock->lock();
     traveler->status = TravelerStatus::RUNNING;
-    travelerLock.unlock();
+    traveler->travelerLock->unlock();
     while(keepGoing && traveler->status == TravelerStatus::RUNNING){
         moveTraveler(traveler);
         usleep(travelerSleepTime);
     }
-    travelerLock.lock();
+    traveler->travelerLock->lock();
     traveler->status = TravelerStatus::TERMINATED;
-    travelerLock.unlock();
+    traveler->travelerLock->unlock();
     numLiveThreads--;
 }
 
@@ -370,24 +372,24 @@ void moveTraveler(Traveler* traveler){
                 grid[currTravelerSeg.row][currTravelerSeg.col] = SquareType::FREE_SQUARE;
                 gridLock.unlock();
             }
-            travelerLock.lock();
+            traveler->travelerLock->lock();
             traveler->status = TravelerStatus::TERMINATED;
-            travelerLock.unlock();
+            traveler->travelerLock->unlock();
             numTravelersDone++;
         }
         else{
             //the grid square which is free, cover it by traveler
-            travelerLock.lock();
+            traveler->travelerLock->lock();
             traveler->segmentList.push_front(*targetSegment);
-            travelerLock.unlock();
+            traveler->travelerLock->unlock();
             
             gridLock.lock();
             grid[targetSegment->row][targetSegment->col] = SquareType::TRAVELER;
             gridLock.unlock();
             
-            travelerLock.lock();
+            traveler->travelerLock->lock();
             TravelerSegment tailSeg = traveler->segmentList.back();
-            travelerLock.unlock();
+            traveler->travelerLock->unlock();
             
             // if not growing tail segment  move count % num moves to grow == 0
             if(traveler->moveCount % growthMove ==0){
@@ -416,9 +418,9 @@ void moveTraveler(Traveler* traveler){
                 }
                 TravelerSegment growSeg = {growSeg.row = row, growSeg.col = col, growSeg.dir = tailSeg.dir};
                 
-                travelerLock.lock();
+                traveler->travelerLock->lock();
                 traveler->segmentList.push_back(growSeg);
-                travelerLock.unlock();
+                traveler->travelerLock->unlock();
                 
                 gridLock.lock();
                 grid[growSeg.row][growSeg.col] = SquareType::TRAVELER;
@@ -430,56 +432,12 @@ void moveTraveler(Traveler* traveler){
                 grid[tailSeg.row][tailSeg.col] = SquareType::FREE_SQUARE;
                 gridLock.unlock();
                 
-                travelerLock.lock();
+                traveler->travelerLock->lock();
                 traveler->segmentList.pop_back();
-                travelerLock.unlock();
+                traveler->travelerLock->unlock();
             }
         }
     }
-}
-
-
-vector<Direction> findPossibleMoves(const TravelerSegment& headSeg){
-
-    Direction headDir = headSeg.dir;
-    vector<Direction> possibleMoves;
-    Direction forbiddenDirection = Direction::NORTH;
-    // a traveler can not go in the inverse direction
-    switch (headDir){
-        case Direction::NORTH:
-            forbiddenDirection = Direction::SOUTH;
-            break;
-        case Direction::SOUTH:
-            forbiddenDirection = Direction::NORTH;
-            break;
-        case Direction::WEST:
-            forbiddenDirection = Direction::EAST;
-            break;
-        case Direction::EAST:
-            forbiddenDirection = Direction::WEST;
-            break;
-        default:
-            break;
-    }
-    // Unless the direction is not forbidden push all the other possible moves in a vector and return that vector
-    if(headSeg.row > 0 && (grid[headSeg.row-1][headSeg.col] == SquareType::FREE_SQUARE || grid[headSeg.row-1][headSeg.col] == SquareType::EXIT)){
-        if (forbiddenDirection != Direction::NORTH)
-            possibleMoves.push_back(Direction::NORTH);
-    }
-    if(headSeg.row < numRows-1 && (grid[headSeg.row+1][headSeg.col] == SquareType::FREE_SQUARE || grid[headSeg.row+1][headSeg.col] == SquareType::EXIT)){
-        if (forbiddenDirection != Direction::SOUTH)
-         possibleMoves.push_back(Direction::SOUTH);
-    }
-    if((headSeg.col < numCols-1 )&& (grid[headSeg.row][headSeg.col+1] == SquareType::FREE_SQUARE || grid[headSeg.row][headSeg.col+1] == SquareType::EXIT)){
-        if (forbiddenDirection != Direction::EAST)
-        possibleMoves.push_back(Direction::EAST);
-    }
-    if( headSeg.col > 0  && (grid[headSeg.row][headSeg.col-1] == SquareType::FREE_SQUARE || grid[headSeg.row][headSeg.col-1] == SquareType::EXIT)){
-        if (forbiddenDirection != Direction::WEST)
-        possibleMoves.push_back(Direction::WEST);
-    }
-
-    return possibleMoves;
 }
 
 shared_ptr<TravelerSegment> findtargetSeg(const TravelerSegment& headSeg){
@@ -525,7 +483,101 @@ shared_ptr<TravelerSegment> findtargetSeg(const TravelerSegment& headSeg){
     }
     return ptr;
 }
+vector<Direction> findPossibleMoves(const TravelerSegment& headSeg){
 
+    Direction headDir = headSeg.dir;
+    vector<Direction> possibleMoves;
+    Direction forbiddenDirection = Direction::NORTH;
+    // a traveler can not go in the inverse direction
+    switch (headDir){
+        case Direction::NORTH:
+            forbiddenDirection = Direction::SOUTH;
+            break;
+        case Direction::SOUTH:
+            forbiddenDirection = Direction::NORTH;
+            break;
+        case Direction::WEST:
+            forbiddenDirection = Direction::EAST;
+            break;
+        case Direction::EAST:
+            forbiddenDirection = Direction::WEST;
+            break;
+        default:
+            break;
+    }
+    // Unless the direction is not forbidden push all the other possible moves in a vector and return that vector
+    if(headSeg.row > 0 && (grid[headSeg.row-1][headSeg.col] == SquareType::FREE_SQUARE || grid[headSeg.row-1][headSeg.col] == SquareType::EXIT || grid[headSeg.row-1][headSeg.col] == SquareType::VERTICAL_PARTITION || grid[headSeg.row-1][headSeg.col] == SquareType::HORIZONTAL_PARTITION)){
+        
+        if((grid[headSeg.row-1][headSeg.col] == SquareType::HORIZONTAL_PARTITION) || (grid[headSeg.row-1][headSeg.col]== SquareType::VERTICAL_PARTITION)){
+            int partitionIdx = searchPartitions(headSeg.row-1,headSeg.col);
+            //if partition can move then add it as a possible move of the traveler
+            gridLock.lock();
+            if(updatePartition(partitionIdx, headSeg.row-1,headSeg.col)){
+                possibleMoves.push_back(Direction::NORTH);
+            }
+            gridLock.unlock();
+        }
+        //if not a partition add the move normally
+        else{
+            possibleMoves.push_back(Direction::NORTH);
+        }
+    }
+
+    if(headSeg.row < numRows-1 && (grid[headSeg.row+1][headSeg.col] == SquareType::FREE_SQUARE || grid[headSeg.row+1][headSeg.col] == SquareType::EXIT || grid[headSeg.row+1][headSeg.col] == SquareType::VERTICAL_PARTITION || grid[headSeg.row+1][headSeg.col] == SquareType::HORIZONTAL_PARTITION )){
+        
+        if((grid[headSeg.row+1][headSeg.col] == SquareType::HORIZONTAL_PARTITION) || (grid[headSeg.row+1][headSeg.col] == SquareType::VERTICAL_PARTITION)){
+            int partitionIdx = searchPartitions(headSeg.row+1,headSeg.col);
+            //if partition can move then add it as a possible move of the traveler
+            gridLock.lock();
+            if(updatePartition(partitionIdx, headSeg.row+1,headSeg.col)){
+                possibleMoves.push_back(Direction::SOUTH);
+            }
+            gridLock.unlock();
+        }
+        //if not a partition add the move normally
+        else{
+            possibleMoves.push_back(Direction::SOUTH);
+        }
+    }
+    
+    
+    if((headSeg.col < numCols-1 )&& (grid[headSeg.row][headSeg.col+1] == SquareType::FREE_SQUARE || grid[headSeg.row][headSeg.col+1] == SquareType::EXIT || grid[headSeg.row][headSeg.col+1] == SquareType::VERTICAL_PARTITION || grid[headSeg.row][headSeg.col+1] == SquareType::HORIZONTAL_PARTITION) && forbiddenDirection != Direction::EAST){
+        
+        if((grid[headSeg.row][headSeg.col+1] == SquareType::HORIZONTAL_PARTITION) || (grid[headSeg.row][headSeg.col+1] == SquareType::VERTICAL_PARTITION)){
+            int partitionIdx = searchPartitions(headSeg.row,headSeg.col+1);
+            //if partition can move then add it as a possible move of the traveler
+            gridLock.lock();
+            if(updatePartition(partitionIdx, headSeg.row,headSeg.col+1)){
+                    possibleMoves.push_back(Direction::EAST);
+            }
+            gridLock.unlock();
+        }
+        //if not a partition add the move normally
+        else{
+            possibleMoves.push_back(Direction::EAST);
+        }
+    }
+    
+    if( headSeg.col > 0  && (grid[headSeg.row][headSeg.col-1] == SquareType::FREE_SQUARE || grid[headSeg.row][headSeg.col-1] == SquareType::EXIT || grid[headSeg.row][headSeg.col-1] == SquareType::VERTICAL_PARTITION || grid[headSeg.row][headSeg.col-1] == SquareType::HORIZONTAL_PARTITION)&& forbiddenDirection != Direction::WEST){
+        
+        if((grid[headSeg.row][headSeg.col-1] == SquareType::HORIZONTAL_PARTITION) || (grid[headSeg.row][headSeg.col-1] == SquareType::VERTICAL_PARTITION)){
+            int partitionIdx = searchPartitions(headSeg.row,headSeg.col-1);
+            //if partition can move then add it as a possible move of the traveler
+            gridLock.lock();
+            if(updatePartition(partitionIdx, headSeg.row,headSeg.col-1)){
+                possibleMoves.push_back(Direction::WEST);
+            }
+            gridLock.unlock();
+        }
+        //if not a partition add the move normally
+        else{
+            possibleMoves.push_back(Direction::WEST);
+        }
+    }
+    
+
+    return possibleMoves;
+}
 void joinThreads(void){
     for(int i = 0; i<threadPointerList.size(); i++){
         if (travelerList[i].status != TravelerStatus::JOINED){
@@ -536,6 +588,171 @@ void joinThreads(void){
         }
     }
 }
+//------------------------------------------------------
+#if 0
+#pragma mark -
+#pragma mark Partitions' Movement Helper Functions
+#endif
+//------------------------------------------------------
+//Given a row and column in our grid, find the partition this square is in .
+int searchPartitions(int partitionRow, int partitionCol){
+    int partIdx=0;
+    for(int i = 0; i< partitionList.size();i++){
+        for(int j = 0; j<partitionList[i].blockList.size();j++){
+            if((partitionRow == partitionList[i].blockList[j].row) && (partitionCol == partitionList[i].blockList[j].col)){
+                partIdx = i;
+                break;
+            }
+        }
+    }
+    return partIdx;
+}
+
+bool updatePartition(int partitionIndex, int targetRow,int targetCol){
+    //Check the partition list at this index
+    GridPosition start = partitionList[partitionIndex].blockList[0];
+    GridPosition end = partitionList[partitionIndex].blockList[partitionList[partitionIndex].blockList.size()-1];
+    bool canMovePart = false;
+    if(partitionList[partitionIndex].isVertical){
+        //update vertical
+        //check the amount by which the partition will move up or down
+        int startDiff = (targetRow - start.row)+1;
+        int endDiff = (end.row - targetRow)+1;
+        //check if squares above partition are free
+        // Boolean for whether we have above space
+        bool aboveFree = false;
+        //Boolean for whether we have space below
+        bool belowFree = false;
+        //
+        if(start.row >= endDiff){
+            for(int above = start.row-1; above + endDiff >= start.row; above--){
+                if(grid[above][targetCol] == SquareType::FREE_SQUARE){
+                    aboveFree = true;
+                }
+                else{
+                    aboveFree = false;
+                    break;
+                }
+            }
+        }
+      //check if above squares are free
+        if(aboveFree){
+            //all of above is free, can move partition on top
+            for (int i=1; i<=endDiff; i++){
+                //Make the squares above the start of type vertical partition
+                grid[start.row - i][targetCol] = SquareType::VERTICAL_PARTITION;
+                //free up squares below target
+                grid[end.row - i + 1][targetCol] = SquareType::FREE_SQUARE;
+            }
+            //    all the blocks of partition have moved up by endDiff
+            for (int i=0; i<partitionList[partitionIndex].blockList.size(); i++){
+                partitionList[partitionIndex].blockList[i].row -= endDiff;
+            }
+            canMovePart = true;
+        }
+        //If above squares are not free then check if squares below are free
+        else{
+            if((end.row + startDiff)< numRows){
+                for(int below = end.row+1; below <= end.row + startDiff; below++){
+                    if(grid[below][targetCol] == SquareType::FREE_SQUARE){
+                        belowFree = true;
+                    }
+                    else{
+                        belowFree = false;
+                        break;
+                    }
+                }
+            }
+            if(belowFree){
+                //below squares are free, can move down
+                for (int i=1; i<=startDiff; i++){
+                    //Make the squares below the end of type vertical partition
+                    grid[end.row+i][targetCol] = SquareType::VERTICAL_PARTITION;
+                    //free up squares on top of target
+                    grid[start.row+i-1][targetCol] = SquareType::FREE_SQUARE;
+                }
+                //    all the blocks of partition have moved down by startDiff
+                for (int i=0; i<partitionList[partitionIndex].blockList.size(); i++){
+                    partitionList[partitionIndex].blockList[i].row += startDiff;
+                }
+                canMovePart = true;
+            }
+        }
+    }
+      // if it is a horizontal partition
+    else{
+        int startDiff = (targetCol - start.col)+1;
+        int endDiff = (end.col - targetCol)+1;
+        //Whether we have space to the left
+        bool leftFree = false;
+        //Whether we have space to the right
+        bool rightFree = false;
+        if(start.col >= endDiff){
+           for(int left = start.col-1; left+endDiff >=start.col; left--){
+               if(grid[targetRow][left] == SquareType::FREE_SQUARE){
+                  leftFree = true;
+               }
+               else{
+                  leftFree = false;
+                  break;
+               }
+           }
+        }
+        
+        if(leftFree){
+        //all of left is free, can move partition on left
+        for (int i=1; i<=endDiff; i++){
+            //Make the squares on the left of type horizontal partition
+            grid[targetRow][start.col - i] = SquareType::HORIZONTAL_PARTITION;
+            //free up squares the right of target
+            grid[targetRow][end.col - i + 1] = SquareType::FREE_SQUARE;
+        }
+        for (int i=0; i<partitionList[partitionIndex].blockList.size(); i++){
+            //update partition list col
+            partitionList[partitionIndex].blockList[i].col -= endDiff;
+        }
+            canMovePart = true;
+            
+        }
+        //check right
+        else{
+            if(end.col + startDiff < numCols){
+              for(int right = end.col+1; right <= end.col + startDiff;right++){
+                if(grid[targetRow][right] == SquareType::FREE_SQUARE){
+                  rightFree = true;
+                }
+                else{
+                  rightFree = false;
+                  break;
+                }
+              }
+            }
+            if(rightFree){
+               //Right is free, move partition
+                for (int i=1; i<=startDiff; i++){
+                    //Make the squares on the right of type horizontal partition
+                    grid[targetRow][end.col + i] = SquareType::HORIZONTAL_PARTITION;
+                    //free up squares the left of target
+                    grid[targetRow][start.col + i - 1] = SquareType::FREE_SQUARE;
+                }
+                for (int i=0; i<partitionList[partitionIndex].blockList.size(); i++){
+                    //all the blocks of partition have moved right by startDiff
+                    partitionList[partitionIndex].blockList[i].col += startDiff;
+                }
+               canMovePart = true;
+            }
+        }
+    }
+    return canMovePart;
+  }
+
+
+
+
+
+
+
+
 //------------------------------------------------------
 #if 0
 #pragma mark -
@@ -786,12 +1003,12 @@ void generatePartitions(void)
                         GridPosition pos = {row, col};
                         part.blockList.push_back(pos);
                     }
+                    partitionList.push_back(part);
                 }
             }
         }
         // case of a horizontal partition
-        else
-        {
+        else{
             goodPart = false;
             
             //    I try a few times before giving up
@@ -824,9 +1041,9 @@ void generatePartitions(void)
                         GridPosition pos = {row, col};
                         part.blockList.push_back(pos);
                     }
+                    partitionList.push_back(part);
                 }
             }
         }
     }
 }
-
