@@ -176,8 +176,8 @@ void drawTraveler(const Traveler& traveler)
         //    The last segment is a bit shorter
         glBegin(GL_LINES);
             glVertex2f(0, 0);
-            glVertex2f(segMove[static_cast<int>(traveler.segmentList[traveler.segmentList.size()-1].dir)][0]*0.8f,
-                       segMove[static_cast<int>(traveler.segmentList[traveler.segmentList.size()-1].dir)][1]*0.8f);
+            glVertex2f(segMove[static_cast<int>(traveler.segmentList[traveler.segmentList.size()-1].dir)][0]*0.4f,
+                       segMove[static_cast<int>(traveler.segmentList[traveler.segmentList.size()-1].dir)][1]*0.4f);
         glEnd();
     }
     else
@@ -261,6 +261,18 @@ void drawGrid(void)
                 default:
                     //    nothing
                     break;
+            }
+            
+            if (grid[i][j] == SquareType::TRAVELER)
+            {
+                glColor4f(0.f, 1.f, 0.f, 1.f);
+                glBegin(GL_POLYGON);
+                    glVertex2f(j*DH, i*DV);
+                    glVertex2f((j+0.2f)*DH, i*DV);
+                    glVertex2f((j+0.2f)*DH, (i+0.2f)*DV);
+                    glVertex2f(j*DH, (i+0.2f)*DV);
+                glEnd();
+            
             }
         }
     }
@@ -571,10 +583,8 @@ void myTimerFunc(int value)
     //        decrement number of live threads
     for (unsigned int i=0; i<travelerList.size(); i++){
         if (travelerList[i].status == TravelerStatus::TERMINATED){
-            travelerList[i].status = TravelerStatus::JOINED;
-            numTravelersDone++;
-            numLiveThreads--;
             threadPointerList[i]->join();
+            travelerList[i].status = TravelerStatus::JOINED;
         }
     }
 

@@ -3,7 +3,7 @@
 //  handout
 //
 //  Created by Jean-Yves Hervé on 2020-12-01.
-//	Revised 2022-12-06
+//    Revised 2022-12-06
 
 #include "dataTypes.h"
 
@@ -11,68 +11,67 @@ using namespace std;
 
 string dirStr(const Direction& dir)
 {
-	string outStr;
-	switch (dir)
-	{
-		case Direction::NORTH:
-			outStr = "north";
-			break;
-		
-		case Direction::WEST:
-			outStr = "west";
-			break;
-		
-		case Direction::SOUTH:
-			outStr = "south";
-			break;
-		
-		case Direction::EAST:
-			outStr = "east";
-			break;
-		
-		default:
-			outStr = "";
-			break;
-	}
+    string outStr;
+    switch (dir)
+    {
+        case Direction::NORTH:
+            outStr = "north";
+            break;
+        
+        case Direction::WEST:
+            outStr = "west";
+            break;
+        
+        case Direction::SOUTH:
+            outStr = "south";
+            break;
+        
+        case Direction::EAST:
+            outStr = "east";
+            break;
+        
+        default:
+            outStr = "";
+            break;
+    }
 
-	return outStr;
+    return outStr;
 }
 
 
 string typeStr(const SquareType& type)
 {
-	string outStr;
-	switch (type)
-	{
-		case SquareType::FREE_SQUARE:
-			outStr = "free square";
-			break;
-		
-		case SquareType::EXIT:
-			outStr = "exit";
-			break;
-		
-		case SquareType::WALL:
-			outStr = "wall";
-			break;
-		
-		case SquareType::VERTICAL_PARTITION:
-			outStr = "vertical partition";
-			break;
-		
-		case SquareType::HORIZONTAL_PARTITION:
-			outStr = "horizontal partition";
-			break;
-		
-		case SquareType::TRAVELER:
-			outStr = "traveler";
-			break;
-		
-		default:
-			outStr = "";
-			break;
-	}
+    string outStr;
+    switch (type)
+    {
+        case SquareType::FREE_SQUARE:
+            outStr = "free square";
+            break;
+        
+        case SquareType::EXIT:
+            outStr = "exit";
+            break;
+        
+        case SquareType::WALL:
+            outStr = "wall";
+            break;
+        
+        case SquareType::VERTICAL_PARTITION:
+            outStr = "vertical partition";
+            break;
+        
+        case SquareType::HORIZONTAL_PARTITION:
+            outStr = "horizontal partition";
+            break;
+        
+        case SquareType::TRAVELER:
+            outStr = "traveler";
+            break;
+        
+        default:
+            outStr = "";
+            break;
+    }
 
-	return outStr;
+    return outStr;
 }
-

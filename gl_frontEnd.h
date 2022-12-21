@@ -11,23 +11,23 @@
 #include "dataTypes.h"
 
 //------------------------------------------------------------------------------
-//	Find out whether we are on Linux or macOS (sorry, Windows people)
-//	and load the OpenGL & glut headers.
-//	For the macOS, lets us choose which glut to use
+//    Find out whether we are on Linux or macOS (sorry, Windows people)
+//    and load the OpenGL & glut headers.
+//    For the macOS, lets us choose which glut to use
 //------------------------------------------------------------------------------
 //  Windows platform
 #if (defined(_WIN32) || defined(_WIN64))
     //  Visual
     #if defined(_MSC_VER)
-		#include <Windows.h>
+        #include <Windows.h>
         #include <GL\gl.h>
-		#include <gl/glut.h>
+        #include <gl/glut.h>
     //  gcc-based compiler
     #elif defined(__CYGWIN__) || defined(__MINGW32__)
         #include <GL/gl.h>
         #include <GL/glut.h>
     #elif (defined( __MWERKS__) && __INTEL__))
-		#error not supported anymore
+        #error not supported anymore
     #endif
 //  Linux and Unix
 #elif  (defined(__FreeBSD__) || defined(__linux__) || defined(sgi) || defined(__NetBSD__) || defined(__OpenBSD) || defined(__QNX__))
@@ -36,33 +36,33 @@
 
 //  Macintosh
 #elif defined(__APPLE__)
-	#if 1
-		#include <GLUT/GLUT.h>
-		//	Here ask Xcode/clang++ to suppress "deprecated" warnings
-		#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-	#else
-		#include <GL/freeglut.h>
-		#include <GL/gl.h>
-	#endif
+    #if 1
+        #include <GLUT/GLUT.h>
+        //    Here ask Xcode/clang++ to suppress "deprecated" warnings
+        #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    #else
+        #include <GL/freeglut.h>
+        #include <GL/gl.h>
+    #endif
 #else
-	#error undknown OS
+    #error undknown OS
 #endif
 
 //-----------------------------------------------------------------------------
-//	Function prototypes
+//    Function prototypes
 //-----------------------------------------------------------------------------
 
-//	I don't want to impose how you store the information about your robots,
-//	boxes and doors, so the two functions below will have to be called once for
-//	each pair robot/box and once for each door.
+//    I don't want to impose how you store the information about your robots,
+//    boxes and doors, so the two functions below will have to be called once for
+//    each pair robot/box and once for each door.
 
-//	This draws a colored multi-segment traveler
+//    This draws a colored multi-segment traveler
 void drawTraveler(const Traveler& traveler);
 
-//	This function assigns a color to the door based on its number
+//    This function assigns a color to the door based on its number
 void drawDoor(int doorNumber, int doorRow, int doorCol);
 
-//	Defined in main.cpp
+//    Defined in main.cpp
 void speedupTravelers(void);
 void slowdownTravelers(void);
 void drawTravelers(void);
@@ -75,4 +75,5 @@ float** createTravelerColors(unsigned int numTravelers);
 
 
 #endif // GL_FRONT_END_H
+
 
