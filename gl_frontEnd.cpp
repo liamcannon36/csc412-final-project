@@ -715,3 +715,4 @@ float** createTravelerColors(unsigned int numTravelers)
 
     return travelerColor;
 }
+
