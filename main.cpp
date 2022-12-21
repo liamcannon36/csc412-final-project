@@ -64,7 +64,8 @@ const int MAX_NUM_MESSAGES = 8;
 const int MAX_LENGTH_MESSAGE = 32;
 char** message;
 time_t launchTime;
-
+std::mutex travelerLock;
+std::mutex gridLock;
 //    Random generators:  For uniform distributions
 const unsigned int MAX_NUM_INITIAL_SEGMENTS = 6;
 random_device randDev;
@@ -146,8 +147,7 @@ void handleKeyboardEvent(unsigned char c, int x, int y)
             ok = 1;
             break;
     }
-    if (!ok)
-    {
+    if (!ok){
         //    do something?
     }
 }
@@ -188,10 +188,10 @@ int main(int argc, char* argv[])
     //    to be the width (number of columns) and height (number of rows) of the
     //    grid, the number of travelers, etc.
     //    So far, I hard code-some values
-    numRows = atoi(argv[1]); // --> argv[1]
-    numCols = atoi(argv[2]); // argv[2]
-    numTravelers = atoi(argv[3]); // argv[3]
-    growthMove = atoi(argv[4]); // argv[4] growth after N moves
+    numRows = atoi(argv[1]);
+    numCols = atoi(argv[2]);
+    numTravelers = atoi(argv[3]);
+    growthMove = atoi(argv[4]); //growth after N moves
     
     numLiveThreads = 0;
     numTravelersDone = 0;
@@ -216,11 +216,13 @@ int main(int argc, char* argv[])
     //    Free allocated resource before leaving (not absolutely needed, but
     //    just nicer.  Also, if you crash there, you know something is wrong
     //    in your code.
-    for (unsigned int i=0; i< numRows; i++)
+    for (unsigned int i=0; i< numRows; i++){
         free(grid[i]);
+    }
     free(grid);
-    for (int k=0; k<MAX_NUM_MESSAGES; k++)
+    for (int k=0; k<MAX_NUM_MESSAGES; k++){
         free(message[k]);
+    }
     free(message);
     
     //    This will probably never be executed (the exit point will be in one of the
@@ -274,7 +276,7 @@ void initializeApplication(void)
     generatePartitions();
     
     float** travelerColor = createTravelerColors(numTravelers);
-    for (unsigned int k=0; k<numTravelers; k++) {
+    for (unsigned int k=0; k<numTravelers; k++){
         GridPosition pos = getNewFreePosition();
         //    Note that treating an enum as a sort of integer is increasingly
         //    frowned upon, as C++ versions progress
@@ -282,6 +284,7 @@ void initializeApplication(void)
 
         TravelerSegment seg = {pos.row, pos.col, dir};
         Traveler traveler;
+        
         traveler.segmentList.push_back(seg);
         grid[pos.row][pos.col] = SquareType::TRAVELER;
 
@@ -315,8 +318,6 @@ void initializeApplication(void)
         thread** travelerThread = new thread*[numTravelers];
         for (unsigned int k=0; k<numTravelers; k++) {
             travelerThread[k] = new thread(travelerThreadFunc,&travelerList[k]);
-            //The boolean which helps us to keep track if the thread is terminated yet or no
-            travelerList[k].status = TravelerStatus::RUNNING;
             numLiveThreads++;
             threadPointerList.push_back(travelerThread[k]);
         }
@@ -335,11 +336,17 @@ void initializeApplication(void)
 //------------------------------------------------------
 
 void travelerThreadFunc(Traveler* traveler){
+    //The boolean which helps us to keep track if the thread is terminated yet or no
+    travelerLock.lock();
+    traveler->status = TravelerStatus::RUNNING;
+    travelerLock.unlock();
     while(keepGoing && traveler->status == TravelerStatus::RUNNING){
         moveTraveler(traveler);
         usleep(travelerSleepTime);
     }
+    travelerLock.lock();
     traveler->status = TravelerStatus::TERMINATED;
+    travelerLock.unlock();
     numLiveThreads--;
 }
 
@@ -358,17 +365,30 @@ void moveTraveler(Traveler* traveler){
                // all the squares that it was occupying are now free.
             for(int i = 0; i<traveler->segmentList.size();i++){
                 TravelerSegment currTravelerSeg = traveler->segmentList.at(i);
+                
+                gridLock.lock();
                 grid[currTravelerSeg.row][currTravelerSeg.col] = SquareType::FREE_SQUARE;
+                gridLock.unlock();
             }
+            travelerLock.lock();
             traveler->status = TravelerStatus::TERMINATED;
+            travelerLock.unlock();
             numTravelersDone++;
         }
         else{
             //the grid square which is free, cover it by traveler
+            travelerLock.lock();
             traveler->segmentList.push_front(*targetSegment);
-            grid[targetSegment->row][targetSegment->col] = SquareType::TRAVELER;
+            travelerLock.unlock();
             
+            gridLock.lock();
+            grid[targetSegment->row][targetSegment->col] = SquareType::TRAVELER;
+            gridLock.unlock();
+            
+            travelerLock.lock();
             TravelerSegment tailSeg = traveler->segmentList.back();
+            travelerLock.unlock();
+            
             // if not growing tail segment  move count % num moves to grow == 0
             if(traveler->moveCount % growthMove ==0){
                 Direction tailDir = tailSeg.dir;
@@ -395,13 +415,24 @@ void moveTraveler(Traveler* traveler){
                         break;
                 }
                 TravelerSegment growSeg = {growSeg.row = row, growSeg.col = col, growSeg.dir = tailSeg.dir};
+                
+                travelerLock.lock();
                 traveler->segmentList.push_back(growSeg);
+                travelerLock.unlock();
+                
+                gridLock.lock();
                 grid[growSeg.row][growSeg.col] = SquareType::TRAVELER;
+                gridLock.unlock();
             }
             else{
                 //the grid square which is not covered by traveler, free it
+                gridLock.lock();
                 grid[tailSeg.row][tailSeg.col] = SquareType::FREE_SQUARE;
+                gridLock.unlock();
+                
+                travelerLock.lock();
                 traveler->segmentList.pop_back();
+                travelerLock.unlock();
             }
         }
     }
@@ -456,14 +487,8 @@ shared_ptr<TravelerSegment> findtargetSeg(const TravelerSegment& headSeg){
     vector<Direction> possibleMoves = findPossibleMoves(headSeg);
     //shared ptr which can delete itself when all the links to it are broken
     shared_ptr<TravelerSegment> ptr;
-//    int lowest = 0;
-//    int highest = possibleMoves.size()-1;
-//    int range = (highest - lowest)+1;
-//    int random_int;
     //    if there is at least one possible move, pick one (random/AI)
     if (!possibleMoves.empty()){
-//        srand(static_cast<unsigned int>(time(NULL)));
-//        random_int = lowest + rand() % range;
         Direction targetDir = possibleMoves[unsignedNumberGenerator(engine) % possibleMoves.size()];
         //once a direction is found, initialize target segment
         TravelerSegment targetSegment;
@@ -558,8 +583,7 @@ TravelerSegment newTravelerSegment(const TravelerSegment& currentSeg, bool& canA
     {
         case Direction::NORTH:
             if (    currentSeg.row < numRows-1 &&
-                    grid[currentSeg.row+1][currentSeg.col] == SquareType::FREE_SQUARE)
-            {
+                    grid[currentSeg.row+1][currentSeg.col] == SquareType::FREE_SQUARE){
                 newSeg.row = currentSeg.row+1;
                 newSeg.col = currentSeg.col;
                 newSeg.dir = newDirection(Direction::SOUTH);
@@ -805,3 +829,4 @@ void generatePartitions(void)
         }
     }
 }
+
