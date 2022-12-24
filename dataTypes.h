@@ -11,6 +11,7 @@
 #include <vector>
 #include <deque>
 #include <string>
+#include <mutex>
 
 
 
@@ -106,6 +107,7 @@ struct Traveler
     /**    The list of segments that form the 'tail' of the traveler
      */
     std::deque<TravelerSegment> segmentList;
+    std::mutex* travelerLock;
     
 };
 
@@ -122,7 +124,7 @@ struct SlidingPartition
      *        top-to-bottom for a vertical list
      *        left-to-right for a horizontal list
      */
-    std::deque<GridPosition> blockList;
+    std::vector<GridPosition> blockList;
 
 };
 
