@@ -26,6 +26,7 @@
 #include <cmath>
 #include <vector>
 #include <thread>
+#include <mutex>
 //
 #include "gl_frontEnd.h"
 
@@ -34,6 +35,7 @@ const extern int MAX_NUM_MESSAGES;
 const extern int MAX_LENGTH_MESSAGE;
 
 extern SquareType** grid;
+extern std::mutex** gridLockArr;
 extern unsigned int numRows;            //    height of the grid
 extern unsigned int numCols;            //    width
 extern unsigned int numLiveThreads;        //    the number of live traveler threads
@@ -273,6 +275,27 @@ void drawGrid(void)
                     glVertex2f(j*DH, (i+0.2f)*DV);
                 glEnd();
             
+            }
+            if (grid[i][j] != SquareType::WALL && grid[i][j] != SquareType::EXIT){
+                if (gridLockArr[i][j].try_lock()){
+                    gridLockArr[i][j].unlock();
+                }
+                else{
+                    //         red  green blue
+                    glColor4f(1.f, 0.f, 1.f, 1.f);
+                
+                    const float LOCK_SIZE = 0.2f;    //    fraction of square size
+                    glPushMatrix();
+                    glTranslatef(j*DH, (i+1.f-LOCK_SIZE)*DV, 0.f);
+                    glScalef(LOCK_SIZE*DH, LOCK_SIZE*DV, 1.f);
+                    glBegin(GL_POLYGON);
+                        glVertex2f(0.f, 0.f);
+                        glVertex2f(0.f, 1.f);
+                        glVertex2f(1.f, 1.f);
+                        glVertex2f(1.f, 0.0f);
+                    glEnd();
+                    glPopMatrix();
+                }
             }
         }
     }
